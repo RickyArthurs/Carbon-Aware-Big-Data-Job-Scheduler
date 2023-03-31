@@ -17,8 +17,10 @@ def main():
         updatePredictions()
         updateTargets()
         executeDeadlines()
-        print("Current job optimized execution times: \n")
-        print(runTimes)
+        print("Current job optimized execution times (id, execution time): \n")
+        for run in runTimes:
+            print(run)
+        print("\n")
         print("Waiting... " + str(pd.Timestamp.now()) + "\n")
         time.sleep(60)
     print("No jobs present in queue " + str(pd.Timestamp.now()) + " waiting...\n")
@@ -30,8 +32,6 @@ def executeDeadlines():
     for index, row in jobs.iterrows():
         for idx, run in enumerate(runTimes):
             if run[0] == row["id"]:
-                # print(run[1])
-                # print(pd.Timestamp.today()>run[1])
                 if pd.Timestamp.today() > run[1]:
                     # subproccess which detaches from parent process as a child process to submit job to cluster
                     spark_submit_str = "gcloud dataproc jobs submit pyspark --cluster=cluster-4ba8 --region europe-west2 gs://gti-bucket1-dataproc/notebooks/jobs/{0} -- {1}".format(
@@ -92,21 +92,21 @@ def updateQueue():
 
 
 def updatePredictions():
-    # predictions are currently configured for using country specific carbon intensities as the national carbon intensity API is not functional
-    # this can be reverted back to the national carbon intensity API by changing the url below, uncommenting on line 107
-    # then finally commenting line 122 and uncommenting line 123
+    # predictions are currently configured for using  national carbon intensity API
+    # this can be changed to the country specific carbon intensity API by changing the url below, commenting on line 106
+    # then finally commenting line 121 and uncommenting line 122
 
     global blocks
-    url = "https://data.nationalgrideso.com/backend/dataset/d8084aa3-8c9e-425c-bf0d-51e0441fc241/resource/e032e7aa-dea5-4695-80d6-19739142021d/download/country_carbon_intensity.csv"
-    # url = "https://data.nationalgrideso.com/backend/dataset/f406810a-1a36-48d2-b542-1dfb1348096e/resource/0e5fde43-2de7-4fb4-833d-c7bca3b658b0/download/gb_carbon_intensity.csv"
+    # url = "https://data.nationalgrideso.com/backend/dataset/d8084aa3-8c9e-425c-bf0d-51e0441fc241/resource/e032e7aa-dea5-4695-80d6-19739142021d/download/country_carbon_intensity.csv"
+    url = "https://data.nationalgrideso.com/backend/dataset/f406810a-1a36-48d2-b542-1dfb1348096e/resource/0e5fde43-2de7-4fb4-833d-c7bca3b658b0/download/gb_carbon_intensity.csv"
     df = pd.read_csv(url, on_bad_lines="skip")
     day = pd.Timestamp.today() + timedelta(days=1)
     df["datetime"] = pd.to_datetime(df["datetime"])
     # Select the forecast for the next 24 hours
 
     next_day = df[
-        # (df["actual"].isnull())
-        (
+        (df["actual"].isnull())
+        & (
             (
                 df["datetime"]
                 > (
@@ -119,8 +119,8 @@ def updatePredictions():
         )
     ]
 
-    chunks = next_day["England"].tolist()
-    # chunks = next_day["forecast"].tolist()
+    # chunks = next_day["England"].tolist()
+    chunks = next_day["forecast"].tolist()
 
     blocks = []
     now = datetime.now()
@@ -182,7 +182,10 @@ def updateTargets():
                 if run[0] == row["id"]:
                     present = True
             if not present:
-                runTimes.append((row["id"], (pd.Timestamp(row["deadline"]))))
+                runTimes.append(
+                    (row["id"], (pd.Timestamp(row["deadline"]))),
+                )
+
     for index, row in jobs.iterrows():
         for run in runTimes:
             if run[0] == row["id"]:
